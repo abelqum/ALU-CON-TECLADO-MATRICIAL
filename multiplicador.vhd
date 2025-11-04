@@ -1,160 +1,92 @@
-Library IEEE;
-Use IEEE.std_logic_1164.all;
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
 
-entity Multiplicador is
+entity Multiplicador6b is
 port(
-    A, B: in std_logic_vector(5 downto 0);
-    clk, reset: in std_logic;
-    Resultado: out std_logic_vector(11 downto 0)
+    Multiplicando  : in  std_logic_vector(5 downto 0); 
+    Multiplicador  : in  std_logic_vector(5 downto 0); 
+    Producto_Final : out std_logic_vector(11 downto 0);
+    OvF : out std_logic;
+    ZF  : out std_logic;
+    SF  : out std_logic;
+    Cout: out std_logic
 );
-end Multiplicador;
+end Multiplicador6b;
 
-architecture Behavioral of Multiplicador is
+architecture Behavioral of Multiplicador6b is
 
-component FAS12b is
+    component FAS12b is
     port(
-        a, b : in std_logic_vector(11 downto 0);
-        s_r : in std_logic;
-        s   : out std_logic_vector(11 downto 0);
-        cout : out std_logic
+        a, b : in  std_logic_vector(11 downto 0);
+        s_r  : in  std_logic;
+        s    : out std_logic_vector(11 downto 0);
+        OvF, ZF, SF, Cout: out std_logic
     );
-end component;
+    end component;
 
-signal r0, r1, r2, r3, r4, r5, s1, s2, s3, s4, s5: std_logic_vector(11 downto 0) := (others => '0');
-signal i: integer := 0;
-signal cout1, cout2, cout3, cout4, cout5: std_logic;
-signal A_reg, B_reg: std_logic_vector(5 downto 0) := (others => '0');
-signal start_mult, mult_done: std_logic := '0';
+    type tipo_pp_6b is array (0 to 5) of std_logic_vector(5 downto 0);
+    signal productos_parciales_6b : tipo_pp_6b;
+    
+    type tipo_pp_12b is array (0 to 5) of std_logic_vector(11 downto 0);
+    signal productos_desplazados_12b : tipo_pp_12b;
+
+   
+    type tipo_suma is array (0 to 4) of std_logic_vector(11 downto 0);
+    signal sumas_intermedias : tipo_suma;
+    signal producto_interno : std_logic_vector(11 downto 0);
 
 begin
 
-process(clk, reset)
-begin
-    if reset = '0' then
-        resultado <= (others => '0');
-        r0 <= (others => '0');
-        r1 <= (others => '0');
-        r2 <= (others => '0');
-        r3 <= (others => '0');
-        r4 <= (others => '0');
-        r5 <= (others => '0');
-        i <= 0;
-        A_reg <= (others => '0');
-        B_reg <= (others => '0');
-        start_mult <= '0';
-        mult_done <= '0';
-            
-    elsif rising_edge(clk) then
-        -- Registrar las entradas al inicio
-        if i = 0 and start_mult = '0' then
-            A_reg <= A;
-            B_reg <= B;
-            start_mult <= '1';
-        end if;
+    generar_pp_i: for i in 0 to 5 generate
+        generar_pp_j: for j in 0 to 5 generate
+            productos_parciales_6b(i)(j) <= Multiplicando(j) AND Multiplicador(i);
+        end generate;
+    end generate;
+
+    productos_desplazados_12b(0) <= "000000" & productos_parciales_6b(0);
+    productos_desplazados_12b(1) <= "00000"  & productos_parciales_6b(1) & '0';
+    productos_desplazados_12b(2) <= "0000"   & productos_parciales_6b(2) & "00";
+    productos_desplazados_12b(3) <= "000"    & productos_parciales_6b(3) & "000";
+    productos_desplazados_12b(4) <= "00"     & productos_parciales_6b(4) & "0000";
+    productos_desplazados_12b(5) <= '0'      & productos_parciales_6b(5) & "00000";
+
+  
+    SUMADOR_0: FAS12b port map (
+        a    => productos_desplazados_12b(0),
+        b    => productos_desplazados_12b(1),
+        s_r  => '0', 
+        s    => sumas_intermedias(0),
+        OvF  => open, ZF => open, 
+        SF   => open, Cout => open
+    );
+
+ 
+    generar_sumadores_medios: for i in 1 to 3 generate
+        SUMADOR_I: FAS12b port map (
+            a    => sumas_intermedias(i-1),
+            b    => productos_desplazados_12b(i+1),
+            s_r  => '0',
+            s    => sumas_intermedias(i),
+            OvF  => open, ZF => open, 
+            SF   => open, Cout => open
+        );
+    end generate;
+    
+ 
+    SUMADOR_FINAL: FAS12b port map (
+        a    => sumas_intermedias(3),
+        b    => productos_desplazados_12b(5), 
+        s_r  => '0',
+        s    => producto_interno, 
         
-        if start_mult = '1' and i < 6 then
-            case i is
-                when 0 =>
-                    if B_reg(0) = '0' then
-                        r0 <= (others => '0');
-                    else
-                        r0 <= (others => '0');
-                        r0(5 downto 0) <= A_reg;
-                    end if;
-                when 1 =>
-                    if B_reg(1) = '0' then
-                        r1 <= (others => '0');
-                    else
-                        r1 <= (others => '0');
-                        r1(6 downto 1) <= A_reg;
-                    end if;
-                when 2 =>
-                    if B_reg(2) = '0' then
-                        r2 <= (others => '0');
-                    else
-                        r2 <= (others => '0');
-                        r2(7 downto 2) <= A_reg;
-                    end if;
-                when 3 =>
-                    if B_reg(3) = '0' then
-                        r3 <= (others => '0');
-                    else
-                        r3 <= (others => '0');
-                        r3(8 downto 3) <= A_reg;
-                    end if;
-                when 4 =>
-                    if B_reg(4) = '0' then
-                        r4 <= (others => '0');
-                    else
-                        r4 <= (others => '0');
-                        r4(9 downto 4) <= A_reg;
-                    end if;
-                when 5 =>
-                    if B_reg(5) = '0' then
-                        r5 <= (others => '0');
-                    else
-                        r5 <= (others => '0');
-                        r5(10 downto 5) <= A_reg;
-                    end if;
-                when others =>
-                    null;
-            end case;
-            i <= i + 1;
-        elsif i = 6 then
-            -- Asignar el resultado final cuando i = 6
-            Resultado <= s5;
-            mult_done <= '1';
-            start_mult <= '0';
-        end if;
-        
-        -- Reiniciar para nueva multiplicación
-        if mult_done = '1' then
-            i <= 0;
-            mult_done <= '0';
-            -- Mantener el resultado hasta siguiente multiplicación
-        end if;
-    end if;
-end process;
+   
+        OvF  => OvF, 
+        ZF   => ZF, 
+        SF   => SF, 
+        Cout => Cout
+    );
+ 
 
--- Sumadores (concurrentes)
-sum1: FAS12b port map(
-    a => r0,
-    b => r1,
-    s_r => '0',
-    s => s1,
-    cout => cout1
-);
-
-sum2: FAS12b port map(
-    a => s1,
-    b => r2,
-    s_r => '0',
-    s => s2,
-    cout => cout2
-);
-
-sum3: FAS12b port map(
-    a => s2,
-    b => r3,
-    s_r => '0',
-    s => s3,
-    cout => cout3
-);
-
-sum4: FAS12b port map(
-    a => s3,
-    b => r4,
-    s_r => '0',
-    s => s4,
-    cout => cout4
-);
-
-sum5: FAS12b port map(
-    a => s4,
-    b => r5,
-    s_r => '0',
-    s => s5,
-    cout => cout5
-);
+    Producto_Final <= producto_interno;
 
 end Behavioral;
