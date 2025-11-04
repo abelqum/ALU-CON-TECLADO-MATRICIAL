@@ -5,78 +5,76 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity display is
     Port (
-        Datos: in std_logic_vector(15 downto 0);     -- Entrada BCD de 16 bits (4 dígitos)
-        clk_27mhz : in  STD_LOGIC;                   -- Reloj de 27 MHz        
-        seg       : out STD_LOGIC_VECTOR(0 to 7);    -- Salida de segmentos (a-g)
-        an        : out STD_LOGIC_VECTOR(3 downto 0) -- Ánodos (selección de display)
+        Datos: in std_logic_vector(15 downto 0);
+        clk_27mhz : in  STD_LOGIC;
+        -- --- PUERTO NUEVO ---
+        signo : in STD_LOGIC; -- '1' si es negativo
+        seg       : out STD_LOGIC_VECTOR(0 to 7);
+        an        : out STD_LOGIC_VECTOR(3 downto 0)
     );
 end display;
 
 architecture Behavioral of display is
  
-    -- Señales para el divisor de frecuencia
     signal contador : integer := 0;
     signal clk_10khz : STD_LOGIC := '0';
-
-    -- Señales del multiplexor
     signal display_sel : INTEGER := 0;
     signal bcd_actual : STD_LOGIC_VECTOR(3 downto 0) := "0000";
     
-    -- Señales para los dígitos BCD
-    signal unidades, decenas, centenas, millares: std_logic_vector(3 downto 0);  
-
+    signal unidades, decenas, centenas, millares: std_logic_vector(3 downto 0);
 begin
 
-    -- Extraer los 4 dígitos BCD del vector de entrada de 16 bits
-    unidades <= Datos(3 downto 0);    -- Dígito unidades (bits 3-0)
-    decenas  <= Datos(7 downto 4);    -- Dígito decenas (bits 7-4)
-    centenas <= Datos(11 downto 8);   -- Dígito centenas (bits 11-8)
-    millares <= Datos(15 downto 12);  -- Dígito millares (bits 15-12)
+    unidades <= Datos(3 downto 0);
+    decenas  <= Datos(7 downto 4);
+    centenas <= Datos(11 downto 8);
+    millares <= Datos(15 downto 12);
 
-    -- Divisor de frecuencia: de 27MHz a 10kHz
     process(clk_27mhz)
     begin
         if rising_edge(clk_27mhz) then
-            if contador = 1349 then  -- 27MHz / 10kHz = 2700, medio ciclo = 1350-1
+            if contador = 1349 then
                 contador <= 0;
-                clk_10khz <= not clk_10khz;  -- Genera reloj de 10kHz
+                clk_10khz <= not clk_10khz;
             else
                 contador <= contador + 1;
             end if;
         end if;
     end process;
 
-    -- Multiplexor de displays (funciona a 10kHz)
     process(clk_10khz)
     begin
         if rising_edge(clk_10khz) then
-            display_sel <= (display_sel + 1) mod 4;  -- Cicla entre 0,1,2,3
+            display_sel <= (display_sel + 1) mod 4;
         end if;
     end process;
 
-    -- Selección del dígito actual para mostrar
-    process(display_sel, unidades, decenas, centenas, millares)
+    -- --- PROCESO MODIFICADO ---
+    process(display_sel, unidades, decenas, centenas, millares, signo)
     begin
         case display_sel is
             when 0 =>
-                bcd_actual <= unidades;  -- Muestra unidades
-                an <= "1110";           -- Habilita primer display
+                bcd_actual <= unidades;
+                an <= "1110";
             when 1 =>
-                bcd_actual <= decenas;   -- Muestra decenas
-                an <= "1101";           -- Habilita segundo display
+                bcd_actual <= decenas;
+                an <= "1101";
             when 2 =>
-                bcd_actual <= centenas;  -- Muestra centenas
-                an <= "1011";           -- Habilita tercer display
+                bcd_actual <= centenas;
+                an <= "1011";
             when 3 =>
-                bcd_actual <= millares;  -- Muestra millares
-                an <= "0111";           -- Habilita cuarto display
+                if signo = '1' then
+                    bcd_actual <= "1111"; -- Código especial para "guion"
+                else
+                    bcd_actual <= millares;
+                end if;
+                an <= "0111";
             when others =>
-                bcd_actual <= "0000";    -- Apagado
-                an <= "1111";           -- Todos los displays apagados
+                bcd_actual <= "0000";
+                an <= "1111";
         end case;
     end process;
 
-    -- Conversor BCD a 7 segmentos (cátodo común)
+    -- --- PROCESO MODIFICADO ---
     process(bcd_actual)
     begin
         case bcd_actual is
@@ -90,7 +88,8 @@ begin
             when "0111" => seg <= "11100000"; -- 7
             when "1000" => seg <= "11111110"; -- 8
             when "1001" => seg <= "11110110"; -- 9
-            when others => seg <= "00000000"; -- Apagado (para valores no BCD)
+            when "1111" => seg <= "00000010"; -- Guion "-" (segmento g)
+            when others => seg <= "00000000"; 
         end case;
     end process;
 
