@@ -9,7 +9,6 @@ entity teclado is
         reset     : in  STD_LOGIC;
         fila      : in  std_logic_vector(3 downto 0);
         columnas  : out std_logic_vector(3 downto 0);
-        enter     : in std_logic;
         enter_out : out std_logic;
         numero    : out std_logic_vector(15 downto 0)
     );
@@ -93,7 +92,7 @@ begin
                 when "10000001" => digito <= "0001"; tecla_presionada <= '1'; -- 1
                 when "10000010" => digito <= "0100"; tecla_presionada <= '1'; -- 4
                 when "10000100" => digito <= "0111"; tecla_presionada <= '1'; -- 7
-                when "10001000" => digito <= "1101"; tecla_presionada <= '1'; -- *
+                when "10001000" => digito <= "0100"; tecla_presionada <= '1'; -- * modulo
                 
                 -- Segunda columna (tec = "0100")
                 when "01000001" => digito <= "0010"; tecla_presionada <= '1'; -- 2
@@ -105,18 +104,18 @@ begin
                 when "00100001" => digito <= "0011"; tecla_presionada <= '1'; -- 3
                 when "00100010" => digito <= "0110"; tecla_presionada <= '1'; -- 6
                 when "00100100" => digito <= "1001"; tecla_presionada <= '1'; -- 9
-                when "00101000" => digito <= "1110"; tecla_presionada <= '1'; -- #
+                when "00101000" => digito <= "0011"; tecla_presionada <= '1'; -- # division
                 
                 -- Cuarta columna (tec = "0001")
-                when "00010001" => digito <= "1010"; tecla_presionada <= '1'; -- A (xor)
-                when "00010010" => digito <= "1011"; tecla_presionada <= '1'; -- B (comp a)
-                when "00010100" => digito <= "1100"; tecla_presionada <= '1'; -- C (comp b)
-                when "00011000" => digito <= "0000"; tecla_presionada <= '1'; -- D
+                when "00010001" => digito <= "1111"; tecla_presionada <= '1'; -- A entrada
+                when "00010010" => digito <= "0000"; tecla_presionada <= '1'; -- B suma
+                when "00010100" => digito <= "0001"; tecla_presionada <= '1'; -- C resta
+                when "00011000" => digito <= "0010"; tecla_presionada <= '1'; -- D multiplicacion
                 
                 when others => null;
             end case;
             
-            if enter_db = '0' then
+            if digito = "1111" then
                 enter_out <= '1';
             end if;
         end if;
@@ -154,7 +153,7 @@ begin
             if debounce_counter = 4050000 then
                 debounce_counter <= 0;
                 res_db <= reset;
-                enter_db <= enter;
+           
             else
                 debounce_counter <= debounce_counter + 1;
             end if;
