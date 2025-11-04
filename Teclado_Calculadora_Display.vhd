@@ -7,9 +7,9 @@ Entity TCD is
         leds: out std_logic_vector(3 downto 0);
         fila : in std_logic_vector(3 downto 0);
         columnas : out std_logic_vector(3 downto 0);
-        clk, enter : in std_logic;
+        clk : in std_logic;
         reset : in std_logic;
-        enter_salida: out std_logic;
+        -- Puerto 'enter' eliminado (ya no es necesario)
         seg: out std_logic_vector(0 to 7);
         an: out std_logic_vector(3 downto 0);
         
@@ -37,22 +37,24 @@ Architecture Behavioral of TCD is
         );
     end component;
 
+    -- Componente 'display' actualizado con puerto 'signo'
     component display is
         Port (
             Datos : in std_logic_vector(15 downto 0);
             clk_27mhz : in STD_LOGIC;
+            signo : in STD_LOGIC; -- Puerto nuevo
             seg : out STD_LOGIC_VECTOR(0 to 7);
             an : out STD_LOGIC_VECTOR(3 downto 0)
         );
     end component;
 
+    -- Componente 'teclado' actualizado (sin 'enter')
     component teclado is
         Port (
             clk_27mhz : in STD_LOGIC;
             reset : in STD_LOGIC;
             fila : in std_logic_vector(3 downto 0);
             columnas : out std_logic_vector(3 downto 0);
-            enter : in std_logic;
             enter_out : out std_logic;
             numero : out std_logic_vector(15 downto 0)
         );
@@ -71,13 +73,13 @@ Architecture Behavioral of TCD is
 
 begin
 
+    -- Instanciación 'teclado' actualizada (sin 'enter')
     TECLADO_INST: teclado
         port map(
             clk_27mhz => clk,
             reset => reset,
             fila => fila,
             columnas => columnas,
-            enter => enter,
             enter_out => enter_sal,
             numero => salida_teclado
         );
@@ -97,10 +99,12 @@ begin
             flag_OvF => s_flag_OvF
         );
 
+    -- Instanciación 'display' actualizada con 'signo'
     DISPLAY_INST: display
         port map(
             Datos => Intermediario,
             clk_27mhz => clk,
+            signo => s_flag_SF, -- Conexión nueva
             seg => seg,
             an => an
         );
@@ -108,21 +112,19 @@ begin
     -- --- ASIGNACIÓN DE LEDS EXTERNOS ---
     led_overflow <= s_flag_OvF;
     led_signo    <= s_flag_SF;
-    -- (Puedes conectar s_flag_ZF y s_flag_CF a otros LEDs si quieres)
 
+    -- Proceso para crear un pulso de 1 ciclo para 'enter' (tecla 'A')
     process(clk)
     begin
         if rising_edge(clk) then
             enter_prev <= enter_sal;
             enter_pulso <= '0';
             
-            if enter_prev = '1' and enter_sal = '0' then
+            if enter_prev = '1' and enter_sal = '0' then -- Detecta flanco de bajada
                 enter_pulso <= '1';
             end if;
         end if;
     end process;
-
-    enter_salida <= not enter_sal;
 
     process(clk, reset)
     begin
@@ -133,6 +135,7 @@ begin
         end if;
     end process;
 
+    -- FSM Principal (Lógica corregida)
     process(clk, reset)
     begin
         if reset = '0' then
@@ -143,33 +146,33 @@ begin
         elsif rising_edge(clk) then
             case presente is
                 when num1 => 
-                    leds <= "0001"; -- Lógica de LEDs de estado (original)
+                    leds <= "0001";
                     Areg <= salida_teclado;
                     Intermediario <= Areg;
-                    if enter_pulso = '1' then
+                    if enter_pulso = '1' then -- Lógica corregida
                         siguiente <= num2;
                     end if;
                     
                 when num2 => 
-                    leds <= "0010"; -- Lógica de LEDs de estado (original)
+                    leds <= "0010";
                     Breg <= salida_teclado;
                     Intermediario <= Breg;
-                    if enter_pulso = '1' then
+                    if enter_pulso = '1' then -- Lógica corregida
                         siguiente <= op;
                     end if;
                     
                 when op => 
-                    leds <= "0100"; -- Lógica de LEDs de estado (original)
+                    leds <= "0100";
                     OpReg <= salida_teclado;
                     Intermediario <= OpReg;
-                    if enter_pulso = '1' then
+                    if enter_pulso = '1' then -- Lógica corregida
                         siguiente <= res;
                     end if;
                     
                 when res => 
-                    leds <= "1000"; -- Lógica de LEDs de estado (original)
+                    leds <= "1000";
                     Intermediario <= calc_resultado;
-                    if enter_pulso = '1' then
+                    if enter_pulso = '1' then -- Lógica corregida
                         siguiente <= num1;
                     end if;
                     
