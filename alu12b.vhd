@@ -152,7 +152,7 @@ begin
     -- Shifts
     s_lsl <= std_logic_vector(shift_left(unsigned(A), to_integer(unsigned(B(2 downto 0)))));
     s_asr <= std_logic_vector(shift_right(signed(A), to_integer(unsigned(B(2 downto 0)))));
-    cout_lsl <= A(12 - to_integer(unsigned(B(2 downto 0)))) when to_integer(unsigned(B(2 downto 0))) > 0 else '0';
+    cout_lsl <= A(11 - to_integer(unsigned(B(2 downto 0)))) when to_integer(unsigned(B(2 downto 0))) > 0 else '0';
 
     -- Multiplexor para resultado
     with sel select res_temp <=
@@ -160,7 +160,7 @@ begin
         s_resta                   when "0001",  -- SUB
         s_mult                    when "0010",  -- MULT
         "000000" & s_div_cociente when "0011",  -- DIV
-        s_resta                   when "0100",  -- CMP (usa resta para comparar)
+        "000000" & s_div_residuo  when "0100",  -- MODULO (¡CAMBIADO!)
         s_and                     when "0101",  -- AND
         s_or                      when "0110",  -- OR
         s_not                     when "0111",  -- COMP1
@@ -175,7 +175,7 @@ begin
         cout_resta when "0001",
         cout_mult  when "0010",
         cout_div   when "0011",
-        cout_resta when "0100",  -- CMP
+        cout_div   when "0100",  -- MODULO (¡CAMBIADO!)
         '0'        when "0101",  -- AND
         '0'        when "0110",  -- OR
         '0'        when "0111",  -- COMP1
@@ -189,7 +189,7 @@ begin
         ovf_resta when "0001",
         ovf_mult  when "0010",
         ovf_div   when "0011",
-        ovf_resta when "0100",  -- CMP
+        ovf_div   when "0100",  -- MODULO (¡CAMBIADO!)
         '0'       when "0101",  -- AND
         '0'       when "0110",  -- OR
         '0'       when "0111",  -- COMP1
@@ -205,8 +205,8 @@ begin
     sf_temp <= res_temp(11);
 
     -- Residuo y error de división
-    residuo_temp <= s_div_residuo when sel = "0011" else (others => '0');
-    error_div_temp <= err_div_interno when sel = "0011" else '0';
+    residuo_temp <= s_div_residuo when sel = "0011" or sel = "0100" else (others => '0'); -- (¡CAMBIADO!)
+    error_div_temp <= err_div_interno when sel = "0011" or sel = "0100" else '0'; -- (¡CAMBIADO!)
 
     -- Asignación de salidas
     resultado <= res_temp;
