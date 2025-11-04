@@ -6,7 +6,10 @@ Entity FAS12b is
         a, b : in std_logic_vector(11 downto 0);
         s_r : in std_logic;
         s   : out std_logic_vector(11 downto 0);
-        cout : out std_logic
+        OvF: out std_logic;
+        ZF: out std_logic;
+        SF: out std_logic;
+        Cout: out std_logic
     );
 end FAS12b;
 
@@ -20,6 +23,7 @@ architecture behavioral of FAS12b is
     end component;
 
     signal c : std_logic_vector(12 downto 0);
+    signal s_interno : std_logic_vector(11 downto 0);
 
 begin
 
@@ -29,12 +33,16 @@ begin
             b => b(i),
             c_in => c(i),
             x => s_r,
-            s => s(i),
+            s => s_interno(i), 
             c_out => c(i + 1)
         );
     end generate;
 
     c(0) <= s_r;
-    cout <= c(12);
+    Cout <= c(12); -- bandera carry
+    OvF <= c(12) xor c(11); -- bandera overflow
+    SF <= s_interno(11); -- bandera signo
+    ZF <= '1' when s_interno = x"000" else '0'; -- bandera cero
+    s <= s_interno;
 
 end behavioral;
