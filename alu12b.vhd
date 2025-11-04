@@ -4,229 +4,217 @@ use IEEE.numeric_std.all;
 
 Entity ALU12bits is
     port(
-        A : in std_logic_vector(11 downto 0);      -- Operando A
-        B : in std_logic_vector(11 downto 0);      -- Operando B
-        sel : in std_logic_vector(3 downto 0);     -- Selector de operación
-        clk : in std_logic;                        -- Reloj para mult/div
-        reset : in std_logic;                      -- Reset para mult/div
-        resultado : out std_logic_vector(11 downto 0); -- Resultado
-        resto : out std_logic_vector(5 downto 0);      -- Resto de división
-        c_out : out std_logic;                     -- Acarreo
-        error_div : out std_logic                  -- Error división por cero
+        A : in std_logic_vector(11 downto 0);
+        B : in std_logic_vector(11 downto 0);
+        sel : in std_logic_vector(3 downto 0);
+        resultado : out std_logic_vector(11 downto 0);
+        residuo : out std_logic_vector(5 downto 0);
+        CF : out std_logic;
+        ZF: out std_logic;
+        SF: out std_logic;
+        OvF: out std_logic;
+        error_div : out std_logic
     );
 end ALU12bits;
 
 Architecture Behavioral of ALU12bits is
-    
+
     component FAS12b is
-        port(
-            a, b : in std_logic_vector(11 downto 0);
-            s_r : in std_logic;
-            s   : out std_logic_vector(11 downto 0);
-            cout : out std_logic
-        );
+    port(
+        a    : in  std_logic_vector(11 downto 0);
+        b    : in  std_logic_vector(11 downto 0);
+        s_r  : in  std_logic;
+        s    : out std_logic_vector(11 downto 0);
+        OvF  : out std_logic;
+        ZF   : out std_logic;
+        SF   : out std_logic;
+        Cout : out std_logic
+    );
     end component;
 
-    component Multiplicador is
-        port(
-            A, B : in std_logic_vector(5 downto 0);
-            clk, reset : in std_logic;
-            Resultado : out std_logic_vector(11 downto 0)
-        );
+    component Multiplicador6b is
+    port(
+        Multiplicando  : in  std_logic_vector(5 downto 0);
+        Multiplicador  : in  std_logic_vector(5 downto 0);
+        Producto_Final : out std_logic_vector(11 downto 0);
+        OvF : out std_logic;
+        ZF  : out std_logic;
+        SF  : out std_logic;
+        Cout: out std_logic
+    );
     end component;
-    
-    component Divisor is
-        port(
-            A, B : in std_logic_vector(5 downto 0);
-            clk, reset, Activar : in std_logic;
-            Resultado : out std_logic_vector(11 downto 0);
-            Resto : out std_logic_vector(5 downto 0);
-            error_division_cero : out std_logic
-        );
+
+    component Divisor6b is
+    port(
+        Dividendo : in  std_logic_vector(5 downto 0);
+        Divisor   : in  std_logic_vector(5 downto 0);
+        Cociente  : out std_logic_vector(5 downto 0);
+        Residuo   : out std_logic_vector(5 downto 0);
+        Error_DivCero : out std_logic;
+        OvF : out std_logic;
+        ZF  : out std_logic;
+        SF  : out std_logic;
+        Cout: out std_logic
+    );
     end component;
+
+    -- Señales para operaciones
+    signal s_suma, s_resta, s_c2a : std_logic_vector(11 downto 0);
+    signal ovf_suma, zf_suma, sf_suma, cout_suma : std_logic;
+    signal ovf_resta, zf_resta, sf_resta, cout_resta : std_logic;
+    signal ovf_c2a, zf_c2a, sf_c2a, cout_c2a : std_logic;
+    signal s_mult : std_logic_vector(11 downto 0);
+    signal ovf_mult, zf_mult, sf_mult, cout_mult : std_logic;
+    signal s_div_cociente, s_div_residuo : std_logic_vector(5 downto 0);
+    signal ovf_div, zf_div, sf_div, cout_div : std_logic;
+    signal err_div_interno : std_logic;
     
-    -- Señales para la suma de 8 bits
-    signal a8b, b8b, uno, nota, notb : std_logic_vector(11 downto 0);
-    signal a6b, b6b : std_logic_vector(5 downto 0);
+    -- Operaciones lógicas y shifts
+    signal s_not, s_and, s_or : std_logic_vector(11 downto 0);
+    signal s_lsl, s_asr : std_logic_vector(11 downto 0);
+    signal cout_lsl : std_logic;
     
-    --resultados
-    signal suma8b, resta8b, aMas1, bMas1, aMenos1, bMenos1 : std_logic_vector(11 downto 0);
-    signal suma12b, resta12b, and12, or12, xor12, c2a, c2b, axb, aentreb : std_logic_vector(11 downto 0);
+    -- Constantes
+    signal uno_12b : std_logic_vector(11 downto 0) := (0 => '1', others => '0');
+    signal s_not_a : std_logic_vector(11 downto 0);
     
-    --couts
-    signal suma8bCOUT, resta8bCOUT, aMas1COUT, bMas1COUT : std_logic;
-    signal aMenos1COUT, bMenos1COUT, suma12bCOUT, resta12bCOUT, c2aCOUT, c2bCOUT : std_logic;
-    
-    -- Señal de activación para el divisor
-    signal Activar_div : std_logic;
-        
+    -- Señales de resultado
+    signal res_temp : std_logic_vector(11 downto 0);
+    signal cf_temp, zf_temp, sf_temp, ovf_temp : std_logic;
+    signal residuo_temp : std_logic_vector(5 downto 0);
+    signal error_div_temp : std_logic;
+
 begin
 
-    a6b <= A(5 downto 0);
-    b6b <= B(5 downto 0);
-    a8b <= "0000" & A(7 downto 0);
-    b8b <= "0000" & B(7 downto 0);
-    uno <= "000000000001";
-    nota <= not A;
-    notb <= not B;
+    -- Instancias de componentes
+    s_not_a <= not A;
     
-    -- Señal de activación para el divisor (solo cuando sel = "1110")
-    Activar_div <= '1' when sel = "1110" else '0';
-
-    -- Suma de 8 bits
-    fas_sum8: FAS12b port map(
-        a => a8b, 
-        b => b8b, 
-        s_r => '0',
-        s => suma8b, 
-        cout => suma8bCOUT
-    );
-
-    -- RESTA 8 BITS
-    fas_rest8: FAS12b port map(
-        a => a8b, 
-        b => b8b, 
-        s_r => '1',
-        s => resta8b, 
-        cout => resta8bCOUT
+    fas_c2a_inst: FAS12b port map ( 
+        a => s_not_a, 
+        b => uno_12b, 
+        s_r => '0', 
+        s => s_c2a, 
+        OvF => ovf_c2a, 
+        ZF => zf_c2a, 
+        SF => sf_c2a, 
+        Cout => cout_c2a 
     );
     
-    -- A+1
-    fas_aMas1: FAS12b port map(
-        a => A, 
-        b => uno, 
-        s_r => '0',
-        s => aMas1, 
-        cout => aMas1COUT
-    );
-
-    -- A-1
-    fas_aMenos1: FAS12b port map(
-        a => A, 
-        b => uno, 
-        s_r => '1',
-        s => aMenos1, 
-        cout => aMenos1COUT
-    );
-    
-    -- B+1
-    fas_bMas1: FAS12b port map(
-        a => B, 
-        b => uno, 
-        s_r => '0',
-        s => bMas1, 
-        cout => bMas1COUT
-    );
-    
-    -- B-1
-    fas_bMenos1: FAS12b port map(
-        a => B, 
-        b => uno, 
-        s_r => '1',
-        s => bMenos1, 
-        cout => bMenos1COUT
-    );
-
-    -- Suma de 12 bits
-    fas_sum12: FAS12b port map(
+    fas_suma_inst: FAS12b port map ( 
         a => A, 
         b => B, 
-        s_r => '0',
-        s => suma12b, 
-        cout => suma12bCOUT
-    );
-
-    -- RESTA 12 BITS
-    fas_rest12: FAS12b port map(
-        a => A, 
-        b => B, 
-        s_r => '1',
-        s => resta12b, 
-        cout => resta12bCOUT
+        s_r => '0', 
+        s => s_suma, 
+        OvF => ovf_suma, 
+        ZF => zf_suma, 
+        SF => sf_suma, 
+        Cout => cout_suma 
     );
     
+    fas_resta_inst: FAS12b port map ( 
+        a => A, 
+        b => B, 
+        s_r => '1', 
+        s => s_resta, 
+        OvF => ovf_resta, 
+        ZF => zf_resta, 
+        SF => sf_resta, 
+        Cout => cout_resta 
+    );
+    
+    mult_inst: Multiplicador6b port map ( 
+        Multiplicando => A(5 downto 0), 
+        Multiplicador => B(5 downto 0), 
+        Producto_Final => s_mult, 
+        OvF => ovf_mult, 
+        ZF => zf_mult, 
+        SF => sf_mult, 
+        Cout => cout_mult 
+    );
+    
+    div_inst: Divisor6b port map ( 
+        Dividendo => A(5 downto 0), 
+        Divisor => B(5 downto 0), 
+        Cociente => s_div_cociente, 
+        Residuo => s_div_residuo, 
+        Error_DivCero => err_div_interno, 
+        OvF => ovf_div, 
+        ZF => zf_div, 
+        SF => sf_div, 
+        Cout => cout_div 
+    );
+
     -- Operaciones lógicas
-    and12 <= A and B;
-    or12 <= A or B;
-    xor12 <= A xor B;
+    s_not <= not A;
+    s_and <= A and B;
+    s_or  <= A or B;
 
-    -- COMPLEMENTO A2 DE A
-    fas_compa: FAS12b port map(
-        a => nota, 
-        b => uno, 
-        s_r => '0',
-        s => c2a, 
-        cout => c2aCOUT
-    );
-    
-    -- COMPLEMENTO A2 DE B
-    fas_compb: FAS12b port map(
-        a => notb, 
-        b => uno, 
-        s_r => '0',
-        s => c2b, 
-        cout => c2bCOUT
-    );
+    -- Shifts
+    s_lsl <= std_logic_vector(shift_left(unsigned(A), to_integer(unsigned(B(2 downto 0)))));
+    s_asr <= std_logic_vector(shift_right(signed(A), to_integer(unsigned(B(2 downto 0)))));
+    cout_lsl <= A(12 - to_integer(unsigned(B(2 downto 0)))) when to_integer(unsigned(B(2 downto 0))) > 0 else '0';
 
-    -- MULTIPLICACIÓN DE A*B
-    mult_axb: Multiplicador port map(
-        A => a6b,
-        B => b6b,
-        clk => clk,
-        reset => reset,
-        Resultado => axb
-    );
-    
-    -- DIVISIÓN DE A/B (con señal de activación)
-    div_aentreb: Divisor port map(
-        A => a6b,
-        B => b6b,
-        clk => clk,
-        reset => reset,
-        Activar => Activar_div,  -- Señal de activación
-        Resultado => aentreb,
-        Resto => resto,
-        error_division_cero => error_div
-    );
-    
-    -- Asignar salidas del resultado
-    with sel select
-    Resultado <= 
-        suma8b when "0000",
-        resta8b when "0001",
-        aMas1 when "0010",
-        aMenos1 when "0011",
-        bMas1 when "0100",
-        bMenos1 when "0101",
-        suma12b when "0110",
-        resta12b when "0111",
-        and12 when "1000",
-        or12 when "1001",
-        xor12 when "1010",
-        c2a when "1011",
-        c2b when "1100",
-        axb when "1101",
-        aentreb when "1110",
-        (others => '0') when others;
-    
-    -- Asignar salidas de acarreo
-    with sel select
-    c_out <= 
-        suma8bCOUT when "0000",
-        resta8bCOUT when "0001",
-        aMas1COUT when "0010",
-        aMenos1COUT when "0011",
-        bMas1COUT when "0100",
-        bMenos1COUT when "0101",
-        suma12bCOUT when "0110",
-        resta12bCOUT when "0111",
-        '0' when "1000",
-        '0' when "1001",
-        '0' when "1010",
-        c2aCOUT when "1011",
-        c2bCOUT when "1100",
-        '0' when "1101",
-        '0' when "1110",
-        '0' when others;
-   
+    -- Multiplexor para resultado
+    with sel select res_temp <=
+        s_suma                    when "0000",  -- ADD
+        s_resta                   when "0001",  -- SUB
+        s_mult                    when "0010",  -- MULT
+        "000000" & s_div_cociente when "0011",  -- DIV
+        s_resta                   when "0100",  -- CMP (usa resta para comparar)
+        s_and                     when "0101",  -- AND
+        s_or                      when "0110",  -- OR
+        s_not                     when "0111",  -- COMP1
+        s_c2a                     when "1000",  -- COMP2
+        s_lsl                     when "1001",  -- LSL
+        s_asr                     when "1010",  -- ASR
+        (others => '0')           when others;
+
+    -- Multiplexor para flags
+    with sel select cf_temp <=
+        cout_suma  when "0000",
+        cout_resta when "0001",
+        cout_mult  when "0010",
+        cout_div   when "0011",
+        cout_resta when "0100",  -- CMP
+        '0'        when "0101",  -- AND
+        '0'        when "0110",  -- OR
+        '0'        when "0111",  -- COMP1
+        cout_c2a   when "1000",  -- COMP2
+        cout_lsl   when "1001",  -- LSL
+        '0'        when "1010",  -- ASR
+        '0'        when others;
+
+    with sel select ovf_temp <=
+        ovf_suma  when "0000",
+        ovf_resta when "0001",
+        ovf_mult  when "0010",
+        ovf_div   when "0011",
+        ovf_resta when "0100",  -- CMP
+        '0'       when "0101",  -- AND
+        '0'       when "0110",  -- OR
+        '0'       when "0111",  -- COMP1
+        ovf_c2a   when "1000",  -- COMP2
+        '0'       when "1001",  -- LSL
+        '0'       when "1010",  -- ASR
+        '0'       when others;
+
+    -- Zero Flag
+    zf_temp <= '1' when res_temp = x"000" else '0';
+
+    -- Sign Flag
+    sf_temp <= res_temp(11);
+
+    -- Residuo y error de división
+    residuo_temp <= s_div_residuo when sel = "0011" else (others => '0');
+    error_div_temp <= err_div_interno when sel = "0011" else '0';
+
+    -- Asignación de salidas
+    resultado <= res_temp;
+    residuo <= residuo_temp;
+    CF <= cf_temp;
+    ZF <= zf_temp;
+    SF <= sf_temp;
+    OvF <= ovf_temp;
+    error_div <= error_div_temp;
+
 end Behavioral;
