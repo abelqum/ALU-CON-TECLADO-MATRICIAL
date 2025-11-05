@@ -14,8 +14,7 @@ Entity TCD is
         an: out std_logic_vector(3 downto 0);
         
         -- --- PUERTOS NUEVOS PARA LEDS EXTERNOS ---
-        led_overflow : out std_logic;
-        led_signo    : out std_logic
+        ledsd: out std_logic_vector(3 downto 0)
     );
 end TCD;
 
@@ -110,8 +109,7 @@ begin
         );
 
     -- --- ASIGNACIÓN DE LEDS EXTERNOS ---
-    led_overflow <= s_flag_OvF;
-    led_signo    <= s_flag_SF;
+ ledsd<= s_flag_CF&s_flag_ZF&s_flag_SF&s_flag_OvF;
 
     -- Proceso para crear un pulso de 1 ciclo para 'enter' (tecla 'A')
     process(clk)
