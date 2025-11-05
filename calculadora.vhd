@@ -43,16 +43,24 @@ Architecture Behavioral of Calculadora is
         );
     end component;
 
+    -- --- COMPONENTE BINBCD MODIFICADO ---
     component binbcd is
         Port ( 
             clk, reset: in std_logic;
             binario : in  STD_LOGIC_VECTOR (11 downto 0);
+            signo   : in  std_logic; -- PUERTO AÑADIDO
             bcd     : out STD_LOGIC_VECTOR (15 downto 0)
         );
     end component;
        
     signal binarioA,binarioB,resultadoALU: std_logic_vector(11 downto 0);
     signal restoALU: std_logic_vector(5 downto 0):=(others=>'0');
+    
+    -- --- SEÑALES INTERNAS NUEVAS PARA FLAGS ---
+    signal s_flag_CF  : std_logic;
+    signal s_flag_ZF  : std_logic;
+    signal s_flag_SF  : std_logic;
+    signal s_flag_OvF : std_logic;
 
 begin
 
@@ -72,6 +80,7 @@ begin
             binario => binarioB
         );
 
+    -- --- ALU_INSTANCIA MODIFICADA ---
     ALU_instancia: ALU12bits 
         port map(
             A => binarioA,
@@ -80,18 +89,26 @@ begin
             resultado => resultadoALU,
             residuo   => restoALU,
             error_div => error_div,
-            CF  => flag_CF,
-            ZF  => flag_ZF,
-            SF  => flag_SF,
-            OvF => flag_OvF
+            CF  => s_flag_CF, -- Conectar a señal interna
+            ZF  => s_flag_ZF, -- Conectar a señal interna
+            SF  => s_flag_SF, -- Conectar a señal interna
+            OvF => s_flag_OvF  -- Conectar a señal interna
         );
 
+    -- --- BIN_TO_BCD MODIFICADO ---
     BIN_to_BCD: binbcd 
         port map(
             clk => clk,
             reset => reset,
             binario => resultadoALU,
+            signo   => s_flag_SF, -- Pasar la señal de signo
             bcd => resultado
         );
+        
+    -- --- Asignar señales internas a puertos de salida ---
+    flag_CF <= s_flag_CF;
+    flag_ZF <= s_flag_ZF;
+    flag_SF <= s_flag_SF;
+    flag_OvF <= s_flag_OvF;
         
 end Behavioral;
