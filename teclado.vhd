@@ -33,10 +33,15 @@ architecture Behavioral of teclado is
     signal res_db, enter_db : STD_LOGIC := '0';
     signal debounce_counter : integer := 0;
     signal tecla_valida_pulsada : std_logic := '0';
+    
+    -- Señal para el pulso de enter
+    signal enter_valido_pulso : std_logic := '0';
 
 begin
 
     numero <= mi & cen & dec & un;
+
+    enter_out <= enter_valido_pulso;
 
     process(clk_27mhz, res_db)
     begin
@@ -80,12 +85,12 @@ begin
 
     fila_leida <= fila;
 
-    -- Decodificador de teclado matricial 4x4 (tal cual como lo tenías)
+    -- Decodificador de teclado
     process(clk_tec)
     begin
         if rising_edge(clk_tec) then
-            tecla_presionada <= '0'; -- Por defecto, no hay tecla presionada
-            enter_out <= '0';
+            tecla_presionada <= '0';
+            -- enter_out <= '0'; -- Esta línea se elimina
             
             case tec & fila_leida is
                 -- Primera columna (tec = "1000")
@@ -105,9 +110,9 @@ begin
                 when "00100010" => digito <= "0110"; tecla_presionada <= '1'; -- 6
                 when "00100100" => digito <= "1001"; tecla_presionada <= '1'; -- 9
                 when "00101000" => digito <= "0011"; tecla_presionada <= '1'; -- # division
+           
+                when "00010001" => digito <= "1010"; tecla_presionada <= '1'; -- A entrada
                 
-                -- Cuarta columna (tec = "0001")
-                when "00010001" => digito <= "1111";  enter_out <= '1';  tecla_presionada <= '1'; -- A entrada
                 when "00010010" => digito <= "0000"; tecla_presionada <= '1'; -- B suma
                 when "00010100" => digito <= "0001"; tecla_presionada <= '1'; -- C resta
                 when "00011000" => digito <= "0010"; tecla_presionada <= '1'; -- D multiplicacion
@@ -115,15 +120,16 @@ begin
                 when others => null;
             end case;
             
-       
         end if;
     end process;
-    -- ANTI-REBOTE CORREGIDO (1 PULSO POR TECLA)
+    
+    -- ANTI-REBOTE (MODIFICADO)
     process(clk_27mhz)
     begin
         if rising_edge(clk_27mhz) then
             tecla_presionada_prev <= tecla_presionada;
-            digito_valido <= '0';  -- Siempre en 0 por defecto
+            digito_valido <= '0';
+            enter_valido_pulso <= '0'; -- Pulso de enter a 0 por defecto
             
             -- Detectar flanco de subida
             if tecla_presionada = '1' and tecla_presionada_prev = '0' then
@@ -133,9 +139,19 @@ begin
                 end if;
             end if;
             
-            -- Generar pulso de UN solo ciclo
+           
             if tecla_valida_pulsada = '1' and anti_rebote_counter = DEBOUNCE_TIME - 1 then
-                digito_valido <= '1';
+                
+               
+             
+                if digito = "1010" then
+                    enter_valido_pulso <= '1'; -- Es un pulso de enter
+                    digito_valido <= '0';      -- No es un pulso de dígito
+                else
+                    enter_valido_pulso <= '0'; -- No es un pulso de enter
+                    digito_valido <= '1';      -- Es un pulso de dígito
+                end if;
+                
                 tecla_valida_pulsada <= '0';
             end if;
             
