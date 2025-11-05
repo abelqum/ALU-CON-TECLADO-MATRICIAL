@@ -107,7 +107,7 @@ begin
                 when "00101000" => digito <= "0011"; tecla_presionada <= '1'; -- # division
                 
                 -- Cuarta columna (tec = "0001")
-                when "00010001" => digito <= "1111"; tecla_presionada <= '1'; -- A entrada
+                when "00010001" => digito <= "1111";  enter_out <= '1';  tecla_presionada <= '1'; -- A entrada
                 when "00010010" => digito <= "0000"; tecla_presionada <= '1'; -- B suma
                 when "00010100" => digito <= "0001"; tecla_presionada <= '1'; -- C resta
                 when "00011000" => digito <= "0010"; tecla_presionada <= '1'; -- D multiplicacion
@@ -115,9 +115,7 @@ begin
                 when others => null;
             end case;
             
-            if digito = "1111" then
-                enter_out <= '1';
-            end if;
+       
         end if;
     end process;
     -- ANTI-REBOTE CORREGIDO (1 PULSO POR TECLA)
