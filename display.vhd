@@ -63,7 +63,7 @@ begin
                 an <= "1011";
             when 3 =>
                 if signo = '1' then
-                    bcd_actual <= "1111"; -- Código especial para "guion"
+                    bcd_actual <= "1010"; -- Código especial para "guion"
                 else
                     bcd_actual <= millares;
                 end if;
@@ -88,7 +88,7 @@ begin
             when "0111" => seg <= "11100000"; -- 7
             when "1000" => seg <= "11111110"; -- 8
             when "1001" => seg <= "11110110"; -- 9
-            when "1111" => seg <= "00000010"; -- Guion "-" (segmento g)
+            when "1010" => seg <= "00000010"; -- Guion "-" (segmento g)
             when others => seg <= "00000000"; 
         end case;
     end process;
